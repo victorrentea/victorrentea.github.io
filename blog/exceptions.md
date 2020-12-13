@@ -1,4 +1,4 @@
-# Definitive Guide to Working with Exceptions in Java
+# Definitive Guide to Working with Exceptions in J ava
 
 _Victor is a Java Champion, former Lead Architect at IBM, currently an Independent Trainer, having taught thousands of developers in dozens of companies over 8 years of training activity. He is the founder of one of the largest [developer community](https://www.meetup.com/bucharest-software-craftsmanship-community/) in Romania and one of the highest-rated European trainer on Clean Code, Refactoring and Unit Testing. More about him on [victorrentea.ro](http://victorrentea.ro/)_
 
@@ -10,7 +10,7 @@ _All the code of this article is available at [https://github.com/victorrentea/e
 3. [How to handle checked exceptions](#how-to-handle-checked-exceptions)
 4. [Presenting errors to users](#presenting-errors-to-users) 
 5. [Handling unexpected Exceptions](#handling-unexpected-exceptions)
-6. [Handling NullPointerException](#handling-nullpointerexception)
+6. [Avoiding NullPointerException](#avoiding-nullpointerexception)
 7.  [Checked Exceptions and Streams](#checked-exceptions-and-streams)
 8. [The Try Monad](#the-try-monad)
 9. [Left-over tips](#left-over-tips)
@@ -32,7 +32,18 @@ But 25 years later, checked exceptions are still here.
 ## Why you should only use Runtime Exceptions
 _If that’s obvious to you, please skip to the next section_
 
-Let’s imagine Bill left a hack in this promotion logic: the discount is applicable only until... _tomorrow_. :)
+Imagine the following simplified configuration loader 1xxxxsuperscript: 
+
+    public static Date getLastPromoDate() throws ParseException, IOException {
+      Properties props = new Properties();
+      try (Reader reader = new FileReader("config.properties")) {
+         props.load(reader);
+      }
+      SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
+      return format.parse(props.getProperty("last.promo.date"));
+    }
+
+Used by the following business logic:
 
     public void applyDiscount(Order order, Customer customer) {
       if (order.getOfferDate().before(DateUtils.addDays(new Date(), 1))) {
@@ -61,16 +72,6 @@ Then, someday after Black Friday, he has to replace _tomorrow_ with a fixed date
 Of course, there are more important tasks in a project than error handling, so the email is forgotten. 
 
 Two months later, Alan needs to change `Config.getLastPromoDate()` to read the end of promotions date from a properties file. After updating the code accordingly, he throws the new `IOException` to its callers, as usual.
-
-    public static Date getLastPromoDate() throws ParseException, IOException {
-      Properties props = new Properties();
-      try (Reader reader = new FileReader("config.properties")) {
-         props.load(reader);
-      }
-      SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
-      return format.parse(props.getProperty("last.promo.date"));
-    }
-
 **Note**: config files shouldn’t be read repeatedly, but cached somehow; this is just a simplified example to illustrate some common exceptions occurring.
 
 Unfortunately, now the code doesn’t compile anymore. Annoyed that he has to handle exceptions, Alan replaces in Bill’s method `catch (ParseException e)` with `catch (Exception e)`, since that’s the common supertype of both `ParseException` and `IOException`. Leaving the `// TODO` in there he goes to ask Bill what’s to be done there. A fatal mistake.
@@ -389,14 +390,12 @@ Okay, okay... But why?!
 Because Java is a 25-years old language. 25 years is a long time to carry some baggage. So Lombok is effectively hacking the language to make us write less and more focussed code. As [my tweet puts it](https://twitter.com/VictorRentea/status/1282566184672665601), when people get tired of Java’s verbosity, they usually face a decision: become a Scala or Clojure scientist, Kotlin hacker or start cheating Java with Lombok.
 
 
-
-
 But if you run the project now with an incorrect configuration (just mess a bit with the config.properties), you’ll see a stack trace again! Why?! Because the Global Exception Handler was only catching `RuntimeExceptions`, but suddenly we have hidden checked exceptions sneaking around.
 
 Don’t worry: changing `RuntimeException` to `Exception` in our Global Exception Handler fixes the issue. Here’s the [final commit on this section](https://github.com/victorrentea/exceptions-guide/commit/85b43e6c5a1521a9202672d659e1e8b8319cfe3f).
 
-## Handling NullPointerException
-From all the standard Java exceptions, I want to talk about a single one: the terrible `NullPointerException`, NPE in short. A 2016 [study](https://www.overops.com/blog/the-top-10-exceptions-types-in-production-java-applications-based-on-1b-events/) awarded NPE the 1st place in the topmost frequent Java exceptions occurring in production. We’ll explore two techniques to fight it: the self-testing data model and the meaningful null.
+## Avoiding NullPointerException
+From all the standard Java exceptions, let's talk about the terrible `NullPointerException`, NPE in short. A 2016 [study](https://www.overops.com/blog/the-top-10-exceptions-types-in-production-java-applications-based-on-1b-events/) awarded NPE the 1st place in the topmost frequent Java exceptions occurring in production. We’ll explore two techniques to fight it: the self-testing data model and the meaningful null.
 
 At the beginning of this article, we saw an NPE swallowed by the Diaper Anti-Pattern. If you recall, that exception was caused by **invalid data: a null**, an Order without an offer date. Once the business confirmed that every Order in the system must always have the offer date set, how would you enforce this rule? There are many ways to implement it: validation at creation and update time, using ifs or `javax.validation` annotations, or even validation via the entity constructor. Let’s explore the last one.
 
@@ -420,22 +419,58 @@ Of the above, (2) tends to be the most widely used today in projects under devel
 
 Oh, and one more thing, if you also expose a setter, make sure you repeat the validation in there, or better call your setter from your constructor to avoid implementing the rule twice. 
 
-The advantage of enforcing the null-check in the constructor of your data objects is obvious: developers can’t ever forget to do it. An interesting question arises regarding ORM (like Hibernate) or other frameworks that directly write to private fields of entities, bypassing setters or constructors. Then, my advice is to mark the required columns as NOT NULL in the database, but the problem can get more complicated by ‘tolerated incorrect legacy data’. 
+The advantage of enforcing the null-check in the constructor of your data objects is obvious: developers can’t ever forget to do it. An interesting question arises regarding ORM (like Hibernate) or other frameworks that directly write to private fields of entities, bypassing setters or constructors. Then, my advice is to mark the required columns as NOT NULL in the database, but the problem can get more complicated by having to tolerate 'incorrect legacy data’.
+
+The moment all your data objects enforce the validity of their state, you do get a better night sleep, but there's also a price to pay: creating dummy incomplete entity instances in tests becomes impossible. The typical tradeoff is relying more on Object Mothers xxxxxxlink for building test objects.
 
 But what if that `null` has business meaning and it’s not invalid data? 
 
-For example, imagine our Customer might have a `null` Member Card, meaning that she didn’t yet create or maybe she didn’t want a member card. 
-
-> **Best-practice**: Since Java 8, whenever we return a possible absent value, we should wrap it into an `Optional<>`
+For example, imagine our Customer might have a `null` Member Card, meaning that she didn’t yet create or maybe she didn’t want to sign up for a member card. 
 
 ### Getters returning Optional<>
-A getter that returns a possible null field should return `Optional<>`.
+> **Best-practice**: Since Java 8, whenever we return a possible absent value, we should wrap it into an `Optional<>`
 
-This change might seem frightening at first because we’re touching the ‘sacred getter’ we are so familiar with. Our next concern is: would the frameworks tolerate that? 
+
+> A getter for a field which may be `null` should return `Optional<T>`.
+
+Assuming we're talking about an Entity mapped to a relational database, then if you didn't enforce NOT NULL on the corresponding column, the getter for that field should return `Optional`. For non-persistent data objects or NoSQL datastores that don't offer null-defense, see the next section for ways to enforce null-checks programatically in the entity code. 
+
+This change might seem frightening at first because we’re touching the ‘sacred' getter we are all so familiar with. And yes, changing a getter in a large codebase may impact up to dozens of places. To ease the transition, you could use the following sequence of steps: 
+
+1. Create a second getter returning Optional:
+```
+public Optional<String> getPhoneOpt() {
+  return Optional.ofNullable(phone);
+}
+```
+
+2. Change the original getter to call the Optional one:
+```
+public String getPhone() {
+  return getPhoneOpt().orElse(null);
+}
+```
+
+3. Make sure all the Java projects using the owner class are loaded in your workspace.
+3. **Inline** the original getter everywhere. Everyone will end up calling `getPhoneOpt()`.
+4. **Rename** the getter to the default name (removing the `Opt` suffix)
+
+After you do this, everyone previously calling the getter will now do `getPhone().orElse(null);`. In some cases this might be the right thing to do, as in: `dto.phone=e.getPhone().orElse(null);
+
+Other times the code called a method on the returned value, like toUpperXase... If (e...orelseb=null) --> isPresent
+
+But otherc times the dev was tired/careless/rushing and didn't checka for null.
+
+La sf: in the end
+
+
+ in the end you should still check that all the callers of that getter handle Optional gracefully, that is they don't just `.get()` it blindly. Fortunately, IDEs (IntelliJ for sure) are then able to help you identify incorrect Optional handling. But when we did that on our project we discovered dozens of NPEs just waiting to happen.
+
+Our next concern is: would the frameworks tolerate that? 
 
 First of all, both the setter and the field type keeps using the raw reference type (not `Optional`) - we only change the getter. 
 
-Secondly, we should apply this technique only on data objects we write logic with. That is, Entities. As I explained in my [Clean Architecture talk] (https://www.youtube.com/watch?v=tMHO7_RLxgQ&list=PLggcOULvfLL_MfFS_O0MKQ5W_6oWWbIw5&index=3), you should avoid writing heavy logic on API data objects (aka Data Transfer Objects). So `Optional<>` is for Entity model not DTO/API model.
+Secondly, we should apply this technique only on data objects we write logic with. That is, Entities. As I explained in my [Clean Architecture talk](https://www.youtube.com/watch?v=tMHO7_RLxgQ&list=PLggcOULvfLL_MfFS_O0MKQ5W_6oWWbIw5&index=3), you should avoid writing heavy logic on API data objects (aka Data Transfer Objects). So `Optional<>` is for Entity model not DTO/API model.
 
 Thirdly, under the typical usage pattern, all modern persistence frameworks (eg Hibernate, Mongo, Cassandra, ...) will read reflectively from the private fields by default, so they really don’t care about your getter. Let’s see what happens when we change our `Customer.getMemeberCard()` to return an `Optional<MemberCard>`.
 
@@ -579,11 +614,4 @@ If you liked this article, check out [my website](http://victorrentea.ro/) for m
 
 ### Disclaimer
 I kept using `SimpleDateFormat` throughout this article. I am sorry for that. You should prefer the new Java 8 date types whenever possible: `LocalDate` and `LocalDateTime` which you can parse without having to deal with any checked exceptions (phew!). I used the old `java.util.Date` because it’s commonly used and easily accessible. One last warning: `SimpleDateFormat` instances are NOT thread-safe: never cache them in singletons or static fields in a multithread environment.
-
-
-
-LA POSTARE: 
-Mentioneaza (jool @lukaseder), @springcentral, @vavr_io, @project_lombok
-
-
 
