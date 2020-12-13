@@ -2,11 +2,11 @@
 tags: best practices, lombok, clean code 
 ---
 # Avoiding NullPointerException
-From all the standard Java exceptions, let's talk about the terrible `NullPointerException`, NPE in short. [A 2016 study](https://www.overops.com/blog/the-top-10-exceptions-types-in-production-java-applications-based-on-1b-events/) awarded NPE the 1st place in the topmost frequent Java exceptions occurring in production. In this article we’ll explore two main techniques to fight it: the self-validating model and the `Optional`.
+From all the standard Java exceptions, let's talk about the terrible `NullPointerException`, NPE in short. [A 2016 study](https://www.overops.com/blog/the-top-10-exceptions-types-in-production-java-applications-based-on-1b-events/) awarded NPE the 1st place in the topmost frequent Java exceptions occurring in production. In this article we’ll explore the main techniques to fight it: the self-validating model and the `Optional` wrapper.
 
 ## Self-Validating Model    
 
-Imagine a business rule: every Customer has to have a birth date set. There are a number of ways to implement this constraint: validating the data on the create and update use-cases, enforcing it via `NOT NULL` database constraint and/or implementing the null-check right in the constructor of the Customer entity. In this article we'll explore the last one.
+Imagine a business rule: every Customer has to have a birth date set. There are a number of ways to implement this constraint: validating the user data on the create and update use-cases, enforcing it via `NOT NULL` database constraint and/or implementing the null-check right in the constructor of the Customer entity. In this article we'll explore the last one.
 
 Here are the 3 most used forms to null-check in constructor today:
 ```java
@@ -80,11 +80,13 @@ The `if` condition can be simplified by using `.isPresent()` and the second line
 ```java
 customer.getMemberCard().ifPresent(card -> applyDiscount(order, card.getPoints()));
 ```
-This means that you still need to go through all the places the getter is called to *improve* the code as we saw above. Furthermore, I bet that in large codebases you'll also discover places where the null-check (// Line X) was forgotten because the developer was tired/careless/rushing back then. It happened on our project: we discovered dozens of `NullPointerExcepton`s just waiting to happen:
+This means that you still need to go through all the places the getter is called to *improve* the code as we saw above. Furthermore, I bet that in large codebases you'll also discover places where the null-check (// Line X) was forgotten because the developer was tired/careless/rushing back then:
 ```java
 applyDiscount(order, customer.getMemeberCard().orElse(null).getPoints());
 ```
 **Tip**: An IntelliJ inspection will hint you about the possible NPE in this case, so make sure it's turned on: 'Constant conditions and exceptions'. 
+
+Signaling the caller at compile-time that there might be nothing returned to her is an extremely powerful technique that can defeat the most frequent bug in Java applications. Most NPEs occur in large projects mainly because developers aren’t fully aware some parts of the data might be `null`. It happened on our project: we discovered dozens of `NullPointerExcepton`s just waiting to happen when we moved to `Optional` getters.
 
 #### Would the frameworks tolerate getters returning Optional? 
 
@@ -119,8 +121,6 @@ private BillingInfo billingInfo = new BillingInfo();
 This would allow the users of your model to do `e.getBillingInfo().setCity(city);` without worrying about nulls.
 
 ## Conclusion
-Signaling the caller at compile-time that there might be nothing returned to her is an extremely powerful technique that can defeat the most frequent bug in Java applications. Most NPEs occur in large projects mainly because developers aren’t fully aware some parts of the data might be `null`. 
-
 You should consider upgrading your entity model to either reject a `null` via self-validation or present the nullable field via a getter that returns `Optional`. The effort of changing the getters of the core entities in your app is considerable, but along the way, you may find many dormant NPEs. 
 
 Lastly, always instantiate embedded collections or composite structures.
