@@ -1,18 +1,19 @@
 # Avoiding NullPointerException
-From all the standard Java exceptions, let's talk about the terrible `NullPointerException`, NPE in short. [A 2016 study](https://www.overops.com/blog/the-top-10-exceptions-types-in-production-java-applications-based-on-1b-events/) awarded NPE the 1st place in the topmost frequent Java exceptions occurring in production. We’ll explore two techniques to fight it: the self-validating model and the `Optional`.
+From all the standard Java exceptions, let's talk about the terrible `NullPointerException`, NPE in short. [A 2016 study](https://www.overops.com/blog/the-top-10-exceptions-types-in-production-java-applications-based-on-1b-events/) awarded NPE the 1st place in the topmost frequent Java exceptions occurring in production. In this article we’ll explore two main techniques to fight it: the self-validating model and the `Optional`.
 
 ## Self-Validating Model    
 
 Imagine a business rule: every Customer has to have a birth date set. There are a number of ways to implement this constraint: validating the data on the create and update use-cases, enforcing it via `NOT NULL` database constraint and/or implementing the null-check right in the constructor of the Customer entity. In this article we'll explore the last one.
 
 Here are the 3 most used forms to null-check in constructor today:
-
-    public Customer(@NonNull Date birthDate) { // 3
-      if (birthDate == null) { // 1
-         throw new IllegalArgumentException();
-      }
-      this.birthDate = Objects.requireNonNull(birthDate); // 2
-    }
+```java
+public Customer(@NonNull Date birthDate) { // 3
+  if (birthDate == null) { // 1
+     throw new IllegalArgumentException();
+  }
+  this.birthDate = Objects.requireNonNull(birthDate); // 2
+}
+```
 
 The code above contains 3 _alternative_ ways to do the same thing, any single one is of course enough:
 1. Classic `if` check
