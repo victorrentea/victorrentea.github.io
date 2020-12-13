@@ -1,3 +1,6 @@
+---
+tags: best practices, lombok, clean code 
+---
 # Avoiding NullPointerException
 From all the standard Java exceptions, let's talk about the terrible `NullPointerException`, NPE in short. [A 2016 study](https://www.overops.com/blog/the-top-10-exceptions-types-in-production-java-applications-based-on-1b-events/) awarded NPE the 1st place in the topmost frequent Java exceptions occurring in production. In this article we’ll explore two main techniques to fight it: the self-validating model and the `Optional`.
 
