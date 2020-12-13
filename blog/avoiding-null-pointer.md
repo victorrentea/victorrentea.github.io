@@ -29,20 +29,20 @@ Enforcing the null-check in the constructor of your data objects has obvious adv
 
 > **Trick**: Hibernate requires a no-arg constructor on every persistent entity, but that constructor can be marked as `protected` to hide it from normal use. 
 
-The moment all your data objects enforce the validity of their state internally, you do get a better night sleep, but there's also a price to pay: creating dummy incomplete instances in tests becomes impossible. The typical tradeoff is relying more on [Object Mothers](https://martinfowler.com/bliki/ObjectMother.html) for building valid test objects.
+The moment all your data objects enforce the validity of their state internally, you do get a better night sleep, but there's also a price to pay: creating dummy incomplete instances in tests becomes impossible. The typical tradeoff is relying more on [Object Mother](https://martinfowler.com/bliki/ObjectMother.html)s for building valid test objects.
 
-But what if that `null` is really a valid value? For example, imagine our Customer might have a `null` Member Card, meaning that she didn’t yet create or maybe she didn’t want to sign up for a member card. 
+But what if that `null` is really a valid value? For example, imagine our Customer might not have a Member Card because she didn't yet create one or maybe she didn't want to sign up for a member card. 
 
 ## Getters returning Optional
 > **Best-practice**: Since Java 8, whenever a function needs to return `null`, it should declare to return `Optional` instead
 
-Developers rapidly adopted this practice for functions computing a value or fetching remote data. Unfortunately, that didn't helped with the main source of our NPEs: our entity model.
+Developers rapidly adopted this practice for functions computing a value or fetching remote data. Unfortunately, that didn't help with the main source of our NPEs: our entity model.
 
 > A getter for a field which may be `null` should return `Optional`.
 
 Assuming we're talking about an Entity mapped to a relational database, then if you didn't enforce `NOT NULL` on the corresponding column, the getter for that field should return `Optional`. For non-persistent data objects or NoSQL datastores that don't offer `null` protection, the previous section provides ideas on how enforce null-checks programmatically in the entity code. 
 
-This change might seem frightening at first because we’re touching the 'sacred' getter we are all so familiar with. And yes, changing a getter in a large codebase may impact up to dozens of places. To ease the transition, you could use the following sequence of steps: 
+This change might seem frightening at first because we’re touching the 'sacred' getter we are all so familiar with. Indeed, changing a getter in a large codebase may impact up to dozens of places, but to ease the transition you could use the following sequence of steps: 
 
 1. Create a second getter returning `Optional`:
     ```java
