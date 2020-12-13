@@ -5,3 +5,5 @@ _Victor is a Java Champion, former Lead Architect at IBM, currently an Independe
 _All the code of this article is available at [https://github.com/victorrentea/exceptions-guide/tree/article](https://github.com/victorrentea/exceptions-guide/tree/article)_
 
 ## Table of Contents
+
+Hahaha
