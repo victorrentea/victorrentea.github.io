@@ -41,14 +41,14 @@ Assuming we're talking about an Entity mapped to a relational database, then if 
 This change might seem frightening at first because we’re touching the 'sacred' getter we are all so familiar with. And yes, changing a getter in a large codebase may impact up to dozens of places. To ease the transition, you could use the following sequence of steps: 
 
 1. Create a second getter returning `Optional`:
-    ```
+    ```java
     public Optional<String> getMemberCardOpt() {
       return Optional.ofNullable(memberCard);
     }
     ```
 
 2. Change the original getter to delegate to the new one:
-    ```
+    ```java
     public String getMemberCard() {
       return getMemberCardOpt().orElse(null);
     }
@@ -61,23 +61,23 @@ This change might seem frightening at first because we’re touching the 'sacred
 You're done, with zero compilation failures. After you do this, everyone previously calling the getter will now do `getMemberCard().orElse(null);`. In some cases this might be the right thing to do, as in: `dto.phone=customer.getPhone().orElse(null);`
 
 But let's suppose you wanted to use a property of the MemberCard, and you were careful to check for `null`:
-```
+```java
 if (customer.getMemeberCard() != null) { // Line X
     applyDiscount(order, customer.getMemeberCard().getPoints());
 }
 ```
 After applying the refactoring steps above, the code gets refactored to 
-```
+```java
 if (customer.getMemeberCard().orElse(null) != null) { // Line X
     applyDiscount(order, customer.getMemeberCard().orElse(null).getPoints());
 }
 ```
 The `if` condition can be simplified by using `.isPresent()` and the second line by using `.get()`. Then one could even shorten the code to a single line:
-```
+```java
 customer.getMemberCard().ifPresent(card -> applyDiscount(order, card.getPoints()));
 ```
 This means that you still need to go through all the places the getter is called to *improve* the code as we saw above. Furthermore, I bet that in large codebases you'll also discover places where the null-check (// Line X) was forgotten because the developer was tired/careless/rushing back then. It happened on our project: we discovered dozens of `NullPointerExcepton`s just waiting to happen:
-```
+```java
 applyDiscount(order, customer.getMemeberCard().orElse(null).getPoints());
 ```
 **Tip**: An IntelliJ inspection will hint you about the possible NPE in this case, so make sure it's turned on: 'Constant conditions and exceptions'. 
@@ -102,6 +102,7 @@ Never do this:
 private List<String> labels;
 ``` 
 > Always initialize the collection fields with an empty one!
+
 ```java
 private List<String> labels = new ArrayList<>();
 ```
@@ -118,4 +119,4 @@ Signaling the caller at compile-time that there might be nothing returned to her
 
 You should consider upgrading your entity model to either reject a `null` via self-validation or present the nullable field via a getter that returns `Optional`. The effort of changing the getters of the core entities in your app is considerable, but along the way, you may find many dormant NPEs. 
 
-Lastly
+Lastly, always instantiate embedded collections or composite structures.
