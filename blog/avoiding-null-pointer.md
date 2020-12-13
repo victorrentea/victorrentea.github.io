@@ -29,14 +29,14 @@ The moment all your data objects enforce the validity of their state internally,
 
 But what if that `null` is really a valid value? For example, imagine our Customer might have a `null` Member Card, meaning that she didn’t yet create or maybe she didn’t want to sign up for a member card. 
 
-## Getters returning `Optional<>`
-> **Best-practice**: Since Java 8, whenever a function needs to return `null`, it should declare to return `Optional<>` instead
+## Getters returning Optional
+> **Best-practice**: Since Java 8, whenever a function needs to return `null`, it should declare to return `Optional` instead
 
-Developers rapidly adopted this practice for functions computing value or fetching remote data. Unfortunately, that left the main source of nulls untouched: our entity model:
+Developers rapidly adopted this practice for functions computing a value or fetching remote data. Unfortunately, that didn't helped with the main source of our NPEs: our entity model.
 
 > A getter for a field which may be `null` should return `Optional`.
 
-Assuming we're talking about an Entity mapped to a relational database, then if you didn't enforce `NOT NULL` on the corresponding column, the getter for that field should return `Optional`. For non-persistent data objects or NoSQL datastores that don't offer `null` protection, the previous section might provide ideas on how enforce null-checks programmatically in the entity code. 
+Assuming we're talking about an Entity mapped to a relational database, then if you didn't enforce `NOT NULL` on the corresponding column, the getter for that field should return `Optional`. For non-persistent data objects or NoSQL datastores that don't offer `null` protection, the previous section provides ideas on how enforce null-checks programmatically in the entity code. 
 
 This change might seem frightening at first because we’re touching the 'sacred' getter we are all so familiar with. And yes, changing a getter in a large codebase may impact up to dozens of places. To ease the transition, you could use the following sequence of steps: 
 
@@ -47,7 +47,7 @@ This change might seem frightening at first because we’re touching the 'sacred
     }
     ```
 
-2. Change the original getter to call the `Optional` one:
+2. Change the original getter to delegate to the new one:
     ```
     public String getMemberCard() {
       return getMemberCardOpt().orElse(null);
@@ -63,22 +63,22 @@ You're done, with zero compilation failures. After you do this, everyone previou
 But let's suppose you wanted to use a property of the MemberCard, and you were careful to check for `null`:
 ```
 if (customer.getMemeberCard() != null) { // Line X
-    applyDiscount(order, customer.getMemeberCard().getFidelityPoints());
+    applyDiscount(order, customer.getMemeberCard().getPoints());
 }
 ```
 After applying the steps above, the code gets refactored to 
 ```
 if (customer.getMemeberCard().orElse(null) != null) { // Line X
-    applyDiscount(order, customer.getMemeberCard().orElse(null).getFidelityPoints());
+    applyDiscount(order, customer.getMemeberCard().orElse(null).getPoints());
 }
 ```
 The `if` condition can be simplified by using `.isPresent()` and the second line by using `.get()`. Then one could even shorten the code to a single line:
 ```
-customer.getMemberCard().ifPresent(card -> applyDiscount(order, card.getFidelityPoints()));
+customer.getMemberCard().ifPresent(card -> applyDiscount(order, card.getPoints()));
 ```
 This means that you still need to go through all the places the getter is called to *improve* the code as we saw above. Furthermore, I bet that in large codebases you'll also discover places where the null-check (// Line X) was forgotten because the developer was tired/careless/rushing back then. It happened on our project: we discovered dozens of `NullPointerExcepton`s just waiting to happen:
 ```
-applyDiscount(order, customer.getMemeberCard().orElse(null).getFidelityPoints());
+applyDiscount(order, customer.getMemeberCard().orElse(null).getPoints());
 ```
 **Tip**: An IntelliJ inspection ('Constant conditions and exceptions') will hint you about the possible NPE in this case, so have it turned on. 
 
@@ -87,11 +87,11 @@ Our next concern is: would the frameworks be ok with getters returning `Optional
 
 First of all, to make it clear, we only changed the return type of the getter. The setter and the field type keep using the raw reference type (not `Optional`). 
 
-Secondly, we should apply this technique only on data objects we write logic with. That is, Entities. As I explained in my [Clean Architecture talk](https://www.youtube.com/watch?v=tMHO7_RLxgQ&list=PLggcOULvfLL_MfFS_O0MKQ5W_6oWWbIw5&index=3), you should avoid writing heavy logic on API data objects (aka Data Transfer Objects). So `Optional<>` is for Entity model not DTO/API model.
+Secondly, we should apply this technique only on data objects we write logic with. That is, Entities. As I explained in my [Clean Architecture talk](https://www.youtube.com/watch?v=tMHO7_RLxgQ&list=PLggcOULvfLL_MfFS_O0MKQ5W_6oWWbIw5&index=3), you should avoid writing heavy logic on API data objects (aka Data Transfer Objects). So `Optional` is for Entity model not DTO/API model.
 
 Thirdly, all modern object-mapper frameworks (eg Hibernate, Mongo, Cassandra, Jackson, JAXB ...) can be instructed to read from the private fields via reflection (Hibernated does it by default), so they really don’t care about your getter. 
 
-Signaling the caller at compile-time that there might be nothing returned to her is an extremely powerful technique. Most NPEs occur in large projects mainly because developers aren’t fully aware  some parts of the data might be missing, some fields might be `null`. I would strongly advise that you upgrade your entity model such that for every nullable field, the getter returns `Optional<>`. The effort of changing the getters of the core entities in your app is considerable, but along the way, you’ll may find many  dormant NPEs. And at the end, the rate of NPE bugs will be halved (at least), since the main source of nulls in your app, your entity model, will be null-safe.
+Signaling the caller at compile-time that there might be nothing returned to her is an extremely powerful technique. Most NPEs occur in large projects mainly because developers aren’t fully aware  some parts of the data might be missing, some fields might be `null`. I would strongly advise that you upgrade your entity model such that for every nullable field, the getter returns `Optional`. The effort of changing the getters of the core entities in your app is considerable, but along the way, you’ll may find many  dormant NPEs. And at the end, the rate of NPE bugs will be halved (at least), since the main source of nulls in your app, your entity model, will be null-safe.
 
 
 In conclusion, there are two major best practices in dealing with null: throw as early as possible or wrap the possible null into an `Optional`.
