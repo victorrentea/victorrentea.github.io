@@ -144,7 +144,7 @@ To understand the right answer, we need to talk about abstractions. An abstracti
       }
     }
 
-> **Best Practice**: Avoid catching Exception unless in a top-level global exception handler (read below); instead, prefer E1|E2 style (as in the code above).
+> **Best Practice**: Avoid catching Exception unless in a top-level global exception handler (read below); instead, prefer E1\|E2 style (as in the code above).
 
 There are mainly two reasons why we only allow RuntimeExceptions through our code today: 
 1. Avoid abstraction leak and 
