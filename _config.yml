@@ -3,5 +3,7 @@ title: Victor Rentea' Blog
 email: victorrentea@gmail.com
 twitter_username: victorrentea
 github_username: victorrentea
+highlighter: rouge
+
 gems:
  - jemoji
