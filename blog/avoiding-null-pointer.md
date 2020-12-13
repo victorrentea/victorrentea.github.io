@@ -2,7 +2,7 @@
 tags: best practices, lombok, clean code 
 ---
 # Avoiding NullPointerException
-From all the standard Java exceptions, let's talk about the terrible `NullPointerException`, NPE in short. [A 2016 study](https://www.overops.com/blog/the-top-10-exceptions-types-in-production-java-applications-based-on-1b-events/) awarded NPE the 1st place in the topmost frequent Java exceptions occurring in production. In this article we’ll explore the main techniques to fight it: the self-validating model and the `Optional` wrapper.
+The terrible `NullPointerException` (NPE in short) is the most frequent Java exception occurring in production, acording to [a 2016 study](https://www.overops.com/blog/the-top-10-exceptions-types-in-production-java-applications-based-on-1b-events/). In this article we’ll explore the main techniques to fight it: the self-validating model and the `Optional` wrapper.
 
 ## Self-Validating Model    
 
@@ -25,24 +25,26 @@ The code above contains 3 _alternative_ ways to do the same thing, any single on
 
 If there is a setter for birth date, the check will move there, leaving the constructor to call that setter. 
 
-Enforcing the null-check in the constructor of your data objects has obvious advantages: no one could ever forget to do it. However, frameworks writing directly to the fields of the instance via reflection may bypass this check. Hibernate does this by default, so my advice is to also mark the corresponding required columns as `NOT NULL` in the database. Unfortunately, the problem can get more complicated in legacy systems by having to tolerate 'incorrect historical data’.
+Enforcing the null-check in the constructor of your data objects has obvious advantages: no one could ever forget to do it. However, frameworks writing directly to the fields of the instance via reflection may bypass this check. Hibernate does this by default, so my advice is to also mark the corresponding required columns as `NOT NULL` in the database to make sure the data comes back consistent. Unfortunately, the problem can get more complicated in legacy systems that have to tolerate 'incorrect historical data’.
 
-> **Trick**: Hibernate requires a no-arg constructor on every persistent entity, but that constructor can be marked as `protected` to hide it from normal use. 
+> **Trick**: Hibernate requires a no-arg constructor on every persistent entity, but that constructor can be marked as `protected` to hide it from developers. 
 
 The moment all your data objects enforce the validity of their state internally, you do get a better night sleep, but there's also a price to pay: creating dummy incomplete instances in tests becomes impossible. The typical tradeoff is relying more on [Object Mother](https://martinfowler.com/bliki/ObjectMother.html)s for building valid test objects.
 
-But what if that `null` is really a valid value? For example, imagine our Customer might not have a Member Card because she didn't yet create one or maybe she didn't want to sign up for a member card. 
+So, in general, whenever a null represents a data inconsistency case, throw exception as early as possible.
+
+But what if that `null` is indeed a valid value? For example, imagine our Customer might not have a Member Card because she didn't yet create one or maybe she didn't want to sign up for a member card. We'll discuss this case in the following section.
 
 ## Getters returning Optional
 > **Best-practice**: Since Java 8, whenever a function needs to return `null`, it should declare to return `Optional` instead
 
-Developers rapidly adopted this practice for functions computing a value or fetching remote data. Unfortunately, that didn't help with the main source of our NPEs: our entity model.
+Developers rapidly adopted this practice for functions computing a value or fetching remote data. Unfortunately, that didn't help with the main source of NPEs: our entity model.
 
 > A getter for a field which may be `null` should return `Optional`.
 
 Assuming we're talking about an Entity mapped to a relational database, then if you didn't enforce `NOT NULL` on the corresponding column, the getter for that field should return `Optional`. For non-persistent data objects or NoSQL datastores that don't offer `null` protection, the previous section provides ideas on how enforce null-checks programmatically in the entity code. 
 
-This change might seem frightening at first because we’re touching the 'sacred' getter we are all so familiar with. Indeed, changing a getter in a large codebase may impact up to dozens of places, but to ease the transition you could use the following sequence of steps: 
+This change might seem frightening at first because we’re touching the 'sacred' getter we are all so familiar with. Indeed, changing a getter in a large codebase may impact up to dozens of places, but to ease the transition you could use the following sequence of safe steps: 
 
 1. Create a second getter returning `Optional`:
     ```java
@@ -84,24 +86,25 @@ This means that you still need to go through all the places the getter is called
 ```java
 applyDiscount(order, customer.getMemeberCard().orElse(null).getPoints());
 ```
-**Tip**: An IntelliJ inspection will hint you about the possible NPE in this case, so make sure it's turned on: 'Constant conditions and exceptions'. 
+**Tip**: IntelliJ will hint you about the possible NPE in this case, so make sure the inspection 'Constant conditions and exceptions' is turned on. 
 
 Signaling the caller at compile-time that there might be nothing returned to her is an extremely powerful technique that can defeat the most frequent bug in Java applications. Most NPEs occur in large projects mainly because developers aren’t fully aware some parts of the data might be `null`. It happened on our project: we discovered dozens of `NullPointerExcepton`s just waiting to happen when we moved to `Optional` getters.
 
-#### Would the frameworks tolerate getters returning Optional? 
+#### Frameworks and Optional getters 
+
+Would frameworks allow getters to return Optional?
 
 First of all, to make it clear, we only changed the return type of the getter. The setter and the field type kept using the raw type (not `Optional`). 
 
+All modern object-mapper frameworks (eg Hibernate, Mongo, Cassandra, Jackson, JAXB ...) can be instructed to read from private fields via reflection (Hibernated does it by default). So really, the frameworks don’t care about your getters. 
 
-Thirdly, all modern object-mapper frameworks (eg Hibernate, Mongo, Cassandra, Jackson, JAXB ...) can be instructed to read from private fields via reflection (Hibernated does it by default). So honestly, the frameworks don’t care about your getters. 
-
-#### When Optional is overkill?
+#### When is Optional overkill?
 
 You should consider making null-safe the objects you write logic on: Entities and Value Objects. As I explained in my [Clean Architecture talk](https://www.youtube.com/watch?v=tMHO7_RLxgQ&list=PLggcOULvfLL_MfFS_O0MKQ5W_6oWWbIw5&index=3), you should avoid writing logic on API data objects (aka Data Transfer Objects). Since no logic uses them, null-protection is overkill. 
 
 > Use `Optional` in your Domain Model not in your DTO/API Model.
 
-## Instantiate sub-structures by default
+## Pre-instantiate sub-structures
 
 Never do this:
 ```java
@@ -112,7 +115,7 @@ private List<String> labels;
 ```java
 private List<String> labels = new ArrayList<>();
 ```
-Those few bytes allocated beforehand almost never matter. On the other hand, the risk for doing `.add` on a `null` list is just to dangerous. In some other cases you might want to make the field `final` and take it via the constructor. But just don't leave collections references to have a `null` value.
+Those few bytes allocated beforehand almost never matter. On the other hand, the risk for doing `.add` on a `null` list is just to dangerous. In some other cases you might want to make the field `final` and take it via the constructor. Never leave collections references to have a `null` value.
 
 Many teams choose to decompose larger entities into smaller parts. When those parts are mutable, make sure you instantiate the parts in the parent entity:
 ```java
