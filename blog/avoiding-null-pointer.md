@@ -66,7 +66,7 @@ if (customer.getMemeberCard() != null) { // Line X
     applyDiscount(order, customer.getMemeberCard().getPoints());
 }
 ```
-After applying the steps above, the code gets refactored to 
+After applying the refactoring steps above, the code gets refactored to 
 ```
 if (customer.getMemeberCard().orElse(null) != null) { // Line X
     applyDiscount(order, customer.getMemeberCard().orElse(null).getPoints());
@@ -80,18 +80,42 @@ This means that you still need to go through all the places the getter is called
 ```
 applyDiscount(order, customer.getMemeberCard().orElse(null).getPoints());
 ```
-**Tip**: An IntelliJ inspection ('Constant conditions and exceptions') will hint you about the possible NPE in this case, so have it turned on. 
+**Tip**: An IntelliJ inspection will hint you about the possible NPE in this case, so make sure it's turned on: 'Constant conditions and exceptions'. 
+
+#### Would the frameworks tolerate getters returning Optional? 
+
+First of all, to make it clear, we only changed the return type of the getter. The setter and the field type kept using the raw type (not `Optional`). 
 
 
-Our next concern is: would the frameworks be ok with getters returning `Optional`? 
+Thirdly, all modern object-mapper frameworks (eg Hibernate, Mongo, Cassandra, Jackson, JAXB ...) can be instructed to read from private fields via reflection (Hibernated does it by default). So honestly, the frameworks don’t care about your getters. 
 
-First of all, to make it clear, we only changed the return type of the getter. The setter and the field type keep using the raw reference type (not `Optional`). 
+#### When Optional is overkill?
 
-Secondly, we should apply this technique only on data objects we write logic with. That is, Entities. As I explained in my [Clean Architecture talk](https://www.youtube.com/watch?v=tMHO7_RLxgQ&list=PLggcOULvfLL_MfFS_O0MKQ5W_6oWWbIw5&index=3), you should avoid writing heavy logic on API data objects (aka Data Transfer Objects). So `Optional` is for Entity model not DTO/API model.
+You should consider making null-safe the objects you write logic on: Entities and Value Objects. As I explained in my [Clean Architecture talk](https://www.youtube.com/watch?v=tMHO7_RLxgQ&list=PLggcOULvfLL_MfFS_O0MKQ5W_6oWWbIw5&index=3), you should avoid writing logic on API data objects (aka Data Transfer Objects). Since no logic uses them, null-protection is overkill. 
 
-Thirdly, all modern object-mapper frameworks (eg Hibernate, Mongo, Cassandra, Jackson, JAXB ...) can be instructed to read from the private fields via reflection (Hibernated does it by default), so they really don’t care about your getter. 
+> Use `Optional` in your Domain Model not in your DTO/API Model.
 
-Signaling the caller at compile-time that there might be nothing returned to her is an extremely powerful technique. Most NPEs occur in large projects mainly because developers aren’t fully aware  some parts of the data might be missing, some fields might be `null`. I would strongly advise that you upgrade your entity model such that for every nullable field, the getter returns `Optional`. The effort of changing the getters of the core entities in your app is considerable, but along the way, you’ll may find many  dormant NPEs. And at the end, the rate of NPE bugs will be halved (at least), since the main source of nulls in your app, your entity model, will be null-safe.
+## Instantiate sub-structures by default
 
+Never do this:
+```java
+private List<String> labels;
+``` 
+> Always initialize the collection fields with an empty one!
+```java
+private List<String> labels = new ArrayList<>();
+```
+Those few bytes allocated beforehand almost never matter. On the other hand, the risk for doing `.add` on a `null` list is just to dangerous. In some other cases you might want to make the field `final` and take it via the constructor. But just don't leave collections references to have a `null` value.
 
-In conclusion, there are two major best practices in dealing with null: throw as early as possible or wrap the possible null into an `Optional`.
+Many teams choose to decompose larger entities into smaller parts. When those parts are mutable, make sure you instantiate the parts in the parent entity:
+```java
+private BillingInfo billingInfo = new BillingInfo();
+``` 
+This would allow the users of your model to do `e.getBillingInfo().setCity(city);` without worrying about nulls.
+
+## Conclusion
+Signaling the caller at compile-time that there might be nothing returned to her is an extremely powerful technique that can defeat the most frequent bug in Java applications. Most NPEs occur in large projects mainly because developers aren’t fully aware some parts of the data might be `null`. 
+
+You should consider upgrading your entity model to either reject a `null` via self-validation or present the nullable field via a getter that returns `Optional`. The effort of changing the getters of the core entities in your app is considerable, but along the way, you may find many dormant NPEs. 
+
+Lastly
