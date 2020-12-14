@@ -10,8 +10,7 @@ _All the code of this article is available at [https://github.com/victorrentea/e
 3. [How to handle checked exceptions](#how-to-handle-checked-exceptions)
 4. [Presenting errors to users](#presenting-errors-to-users) 
 5. [Handling unexpected Exceptions](#handling-unexpected-exceptions)
-6. [Avoiding NullPointerException](#avoiding-nullpointerexception)
-7.  [Checked Exceptions and Streams](#checked-exceptions-and-streams)
+7. [Checked Exceptions and Streams](#checked-exceptions-and-streams)
 8. [The Try Monad](#the-try-monad)
 9. [Left-over tips](#left-over-tips)
 
@@ -394,9 +393,6 @@ But if you run the project now with an incorrect configuration (just mess a bit 
 
 Don’t worry: changing `RuntimeException` to `Exception` in our Global Exception Handler fixes the issue. Here’s the [final commit on this section](https://github.com/victorrentea/exceptions-guide/commit/85b43e6c5a1521a9202672d659e1e8b8319cfe3f).
 
-## Avoiding NullPointerException
-This section turned into a separate article: [Avoiding NullPointerException](avoiding-null-pointer.html)
-
 ## Checked Exceptions and Streams
 Java 8 gave us an extremely powerful weapon against the most frequent Exception in Java: the `Optional`. Unfortunately, Java 8 also brought new headaches regarding exceptions, as the default functional interfaces in Java 8 don’t declare throwing any checked exceptions. So every time you get a checked exception within a lambda, you have to fix that somehow:
 
@@ -510,6 +506,8 @@ If you liked this article, check out [my website](http://victorrentea.ro/) for m
 ### Out of Scope
 - Async exceptions: exceptions occurring in other threads (Executors, `@Async`, CompletableFuture, Reactive-X, Message Handlers...)
 - How to handle `InterruptedExceptions`: [article](https://dzone.com/articles/how-to-handle-the-interruptedexception)
+- Avoiding NullPointerException: separate [blog post](avoiding-null-pointer.html)
+
 
 ### Disclaimer
 I kept using `SimpleDateFormat` throughout this article. I am sorry for that. You should prefer the new Java 8 date types whenever possible: `LocalDate` and `LocalDateTime` which you can parse without having to deal with any checked exceptions (phew!). I used the old `java.util.Date` because it’s commonly used and easily accessible. One last warning: `SimpleDateFormat` instances are NOT thread-safe: never cache them in singletons or static fields in a multithread environment.
